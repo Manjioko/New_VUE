@@ -3,9 +3,9 @@ import VNode from "./vnode"
 class Vue {
     constructor(options) {
         this.$options = options
-        const proxy = this.initDataProxy()
+        this.proxy = this.initDataProxy()
         this.initWatch()
-        return proxy
+        return this.proxy
     }
 
     // 观察者定义入口
@@ -21,7 +21,10 @@ class Vue {
     // 挂载函数实现
     $mount(root) {
         // 默认$potions内存在一个render函数，接受一个参数
-        const vnode = this.$options?.render?.(this.createElement) ?? this.createElement(undefined,undefined,undefined)
+        // const vnode = this.$options?.render?.(this.createElement) ?? this.createElement(undefined,undefined,undefined)
+        const {mounted, render} = this.$options
+        const vnode = render?.call(this.proxy, this.createElement) ?? this.createElement(undefined,undefined,undefined)
+
 
         // 为类Vue创建一个$el变量
         this.$el = this.createElm(vnode)
@@ -31,10 +34,26 @@ class Vue {
             root.appendChild(this.$el)
         }
         // console.log(root)
+        mounted?.call(this.proxy)
 
         // 返回 proxy 本身
         return this
 
+    }
+
+    update() {
+        // 删除旧有的DOM
+        const parent = this.$el.parentNode
+        parent?.removeChild(this.$el)
+        // 重新构建DOM树
+        const vnode = this.$options?.render?.call(this.proxy, this.createElement) ?? this.createElement(undefined,undefined,undefined)
+        this.$el = this.patch(null, vnode)
+        // 添加新DOM树
+        parent?.appendChild(this.$el)
+    }
+
+    patch(oldVnode, newVnode) {
+        return this.createElm(newVnode)
     }
 
     createElement(target, data, children) {
@@ -54,10 +73,16 @@ class Vue {
             el.setAttribute(key, vnode.data[key])
         }
 
+        const events = vnode?.data?.on ?? {}
+        // console.log(events)
+        for(let key in events) {
+            el.addEventListener(key, events[key])
+        }
+
         // 构建DOM树
-        if (typeof vnode.children === 'string') {
+        if (!Array.isArray(vnode.child)) {
             // 如果vnode.children是字符串，就给el插入当字符串内容
-            el.textContent = vnode.children
+            el.textContent = vnode.children + ''
         } else {
             // 如果是数组，就遍历它
             vnode.children?.forEach(child => {
@@ -95,8 +120,13 @@ class Vue {
                 return true
             },
             get: (_, key) => {
+                const methods = this.$options?.methods ?? {}
                 // return data[key]
-                return Reflect.get(data, key) ?? Reflect.get(this, key)
+                if(Reflect.has(data,key)) {
+                    this.$watch(key, this.update.bind(this))
+                    return Reflect.get(data, key)
+                } 
+                return Reflect.get(methods, key)?.bind(this.proxy) ?? Reflect.get(this, key)
             }
         })
     }
