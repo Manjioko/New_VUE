@@ -3,6 +3,7 @@ import VNode from "./vnode"
 class Vue {
     constructor(options) {
         this.$options = options
+        this.$mount = this.$mount.bind(this)
         this.proxy = this.initDataProxy()
         this.initWatch()
         return this.proxy
@@ -22,7 +23,7 @@ class Vue {
     $mount(root) {
         // 默认$potions内存在一个render函数，接受一个参数
         // const vnode = this.$options?.render?.(this.createElement) ?? this.createElement(undefined,undefined,undefined)
-        const {mounted, render} = this.$options
+        const { mounted, render } = this.$options
         const vnode = render?.call(this.proxy, this.createElement) ?? this.createElement(undefined,undefined,undefined)
 
 
@@ -33,11 +34,10 @@ class Vue {
             // 由此可以推断出，root是document 或其子类 如 div, p, span等
             root.appendChild(this.$el)
         }
-        // console.log(root)
         mounted?.call(this.proxy)
 
         // 返回 proxy 本身
-        return this
+        return this.proxy
 
     }
 
@@ -63,9 +63,8 @@ class Vue {
 
     // 这个函数只接受一个VNode实例
     createElm(vnode) {
-        // 由此可以推断出this.$options.render返回的是一个对象
+        // 由此可以推断出this.$options.render返回的是一个对象实例
         const el = document.createElement(vnode.target)
-        // console.log(el)
 
         // vnode.data是一个数组
         for (let key in vnode.data) {
@@ -74,7 +73,6 @@ class Vue {
         }
 
         const events = vnode?.data?.on ?? {}
-        // console.log(events)
         for(let key in events) {
             el.addEventListener(key, events[key])
         }
@@ -103,7 +101,6 @@ class Vue {
     initDataProxy() {
         // 默认option对象中有一个data()属性
         const data = this.$options?.data?.() ?? {}
-        // console.log("proxy this is : " + this)
         return new Proxy(this, {
             set: (_, key, value) => {
 
@@ -123,7 +120,7 @@ class Vue {
                 const methods = this.$options?.methods ?? {}
                 // return data[key]
                 if(Reflect.has(data,key)) {
-                    this.$watch(key, this.update.bind(this))
+                    Reflect.get(this.dataNotifyChain,key) ?? this.$watch(key, this.update.bind(this))
                     return Reflect.get(data, key)
                 } 
                 return Reflect.get(methods, key)?.bind(this.proxy) ?? Reflect.get(this, key)
