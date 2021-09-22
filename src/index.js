@@ -101,6 +101,30 @@ class Vue {
     initDataProxy() {
         // 默认option对象中有一个data()属性
         const data = this.$options?.data?.() ?? {}
+        
+        const createDataProxyHandler = path => {
+            return {
+                set: (object, key, value) => {
+                    const fullPath = path ? path + '.' + key : key
+                    
+                    const pre = Reflect.get(object,key)
+                    Reflect.set(object,key,value)
+                    this.notifyDataChange(fullPath,pre,value)
+                    
+                    return true
+                },
+
+                get: (object, key) => {
+                    const fullPath = path ? path + '.' + key : key
+                    this.collect(fullPath)
+                    if(typeof Reflect.get(object,key) === 'object' && Reflect.get(object,key) !== null) {
+                        return new Proxy(Reflect.get(object,key), createDataProxyHandler(fullPath))
+                    } else {
+                        return Reflect.get(object,key)
+                    }
+                }
+            }
+        }
         return new Proxy(this, {
             set: (_, key, value) => {
 
