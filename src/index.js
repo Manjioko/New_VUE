@@ -3,7 +3,7 @@ import VNode from "./vnode"
 class Vue {
     constructor(options) {
         this.$options = options
-        this.$mount = this.$mount.bind(this)
+        // this.$mount = this.$mount.bind(this)
         this.proxy = this.initDataProxy()
         this.initWatch()
         return this.proxy
@@ -37,7 +37,7 @@ class Vue {
         mounted?.call(this.proxy)
 
         // 返回 proxy 本身
-        return this.proxy
+        return this
 
     }
 
@@ -116,6 +116,7 @@ class Vue {
 
                 get: (object, key) => {
                     const fullPath = path ? path + '.' + key : key
+                    // console.log(fullPath)
                     this.collect(fullPath)
                     if(typeof Reflect.get(object,key) === 'object' && Reflect.get(object,key) !== null) {
                         return new Proxy(Reflect.get(object,key), createDataProxyHandler(fullPath))
@@ -125,31 +126,65 @@ class Vue {
                 }
             }
         }
-        return new Proxy(this, {
-            set: (_, key, value) => {
 
-                if (Reflect.has(data, key)) {
-                    const pre = Reflect.get(data, key)
-                    // data[key] = value
-                    Reflect.set(data, key, value)
-                    // 唤醒观察者
-                    this.notifyDataChange(key, pre, value)
+        const handler = {
+            set: (_, key, value) => {
+                if(Reflect.has(data, key)) {
+                    return createDataProxyHandler().set(data,key,value)
                 } else {
-                    Reflect.set(data, key, value)
+                    Reflect.set(this, key, value)
                 }
 
                 return true
             },
-            get: (_, key) => {
+
+            get: (_, key, value) => {
                 const methods = this.$options?.methods ?? {}
-                // return data[key]
+
                 if(Reflect.has(data,key)) {
-                    Reflect.get(this.dataNotifyChain,key) ?? this.$watch(key, this.update.bind(this))
-                    return Reflect.get(data, key)
-                } 
+                    return createDataProxyHandler().get(data,key)
+                }
+
                 return Reflect.get(methods, key)?.bind(this.proxy) ?? Reflect.get(this, key)
             }
-        })
+        }
+        // return new Proxy(this, {
+        //     set: (_, key, value) => {
+
+        //         if (Reflect.has(data, key)) {
+        //             const pre = Reflect.get(data, key)
+        //             // data[key] = value
+        //             Reflect.set(data, key, value)
+        //             // 唤醒观察者
+        //             this.notifyDataChange(key, pre, value)
+        //         } else {
+        //             Reflect.set(this, key, value)
+        //         }
+
+        //         return true
+        //     },
+        //     get: (_, key) => {
+        //         const methods = this.$options?.methods ?? {}
+        //         // return data[key]
+        //         if(Reflect.has(data,key)) {
+        //             Reflect.get(this.dataNotifyChain,key) ?? this.$watch(key, this.update.bind(this))
+        //             return Reflect.get(data, key)
+        //         } 
+        //         return Reflect.get(methods, key)?.bind(this.proxy) ?? Reflect.get(this, key)
+        //     }
+        // })
+
+        return new Proxy(this,handler)
+    }
+
+    collect(key) {
+        // console.log("collect 'this' is :")
+        // console.log(this)
+        this.collected = this.collected ?? {}
+        if(!this.collected[key]) {
+            this.$watch(key,this.update.bind(this))
+            this.collected[key] = true
+        }
     }
 
     initWatch() {

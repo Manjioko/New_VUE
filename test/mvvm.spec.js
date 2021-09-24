@@ -15,8 +15,29 @@ describe('Mvvm', function () {
 
         vm.a++
         expect(vm.$el.textContent).toBe('1')
+        // console.log(vm.$el.textContent)
         vm.a = 999
         expect(vm.$el.textContent).toBe('999')
-        // console.log(vm.$el.textContent)
+    })
+
+    it('Deep Object', function() {
+        const vm = new Vue({
+            data() {
+                return {
+                    a: { b: 0}
+                }
+            },
+            render(h) {
+                return h('DIV',null,this.a.b)
+            }
+        }).$mount()
+        expect(vm.a.b).toBe(0)
+        vm.a.b++
+        expect(vm.a.b).toBe(1)
+
+        expect(vm.$el.textContent).toBe('1')
+        vm.a.b = 999
+        expect(vm.$el.textContent).toBe('999')
+        console.log(vm.dataNotifyChain)
     })
 })
