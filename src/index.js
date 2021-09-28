@@ -102,7 +102,7 @@ class Vue {
         // 默认option对象中有一个data()属性
         const data = this.$options?.data?.() ?? {}
         
-        const createDataProxyHandler = path => {
+        const createDataProxyHandler = path => { 
             return {
                 set: (object, key, value) => {
                     const fullPath = path ? path + '.' + key : key
@@ -123,7 +123,9 @@ class Vue {
                     } else {
                         return Reflect.get(object,key)
                     }
-                }
+                },
+
+
             }
         }
 
