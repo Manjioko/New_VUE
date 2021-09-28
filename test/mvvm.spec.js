@@ -38,7 +38,7 @@ describe('Mvvm', function () {
         expect(vm.$el.textContent).toBe('1')
         vm.a.b = 999
         expect(vm.$el.textContent).toBe('999')
-        console.log(vm.dataNotifyChain)
+        // console.log(vm.dataNotifyChain)
     })
 
     it('Add/Delete Property', function () {
@@ -61,8 +61,8 @@ describe('Mvvm', function () {
         expect(vm.$el.textContent).toBe('10')
 
 
-        // delete vm.a.b
-        // expect(vm.a.b).toBe(undefined)
-        // expect(vm.$el.textContent).toBe('undefined')
+        delete vm.a.b
+        expect(vm.a.b).toBe(undefined)
+        expect(vm.$el.textContent).toBe('undefined')
     })
 })

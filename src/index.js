@@ -11,6 +11,7 @@ class Vue {
 
     // 观察者定义入口
     $watch(key, cb) {
+        // console.log(key)
         // cb 就是 callback function
         // 如果key 不是 dataNotifyChain 的属性,就将key 设置为dataNotifyChain的新属性,并将 [] 赋值给它
         Reflect.get(this.dataNotifyChain, key) ?? Reflect.set(this.dataNotifyChain, key, [])
@@ -101,7 +102,7 @@ class Vue {
     initDataProxy() {
         // 默认option对象中有一个data()属性
         const data = this.$options?.data?.() ?? {}
-        
+
         const createDataProxyHandler = path => { 
             return {
                 set: (object, key, value) => {
@@ -125,6 +126,17 @@ class Vue {
                     }
                 },
 
+                deleteProperty: (object, key) => {
+                    if(Reflect.has(object,key)) {
+                        const fullPath = path ? path + '.' + key : key
+                        const pre = Reflect.get(object,key)
+                        // 删除目标属性
+                        delete object[key]
+                        // 唤醒观察者
+                        this.notifyDataChange(fullPath, pre)
+                    }
+                    return true
+                }
 
             }
         }
