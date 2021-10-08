@@ -24,17 +24,22 @@ class Vue {
     $mount(root) {
         // 默认$potions内存在一个render函数，接受一个参数
         // const vnode = this.$options?.render?.(this.createElement) ?? this.createElement(undefined,undefined,undefined)
-        const { mounted, render } = this.$options
-        const vnode = render?.call(this.proxy, this.createElement) ?? this.createElement(undefined,undefined,undefined)
+        // const { mounted, render } = this.$options
+        // const vnode = render?.call(this.proxy, this.createElement) ?? this.createElement(undefined,undefined,undefined)
+
+        this.$el = root
+
+        this.update()
 
 
-        // 为类Vue创建一个$el变量
-        this.$el = this.createElm(vnode)
+        // // 为类Vue创建一个$el变量
+        // this.$el = this.createElm(vnode)
 
-        if (root) {
-            // 由此可以推断出，root是document 或其子类 如 div, p, span等
-            root.appendChild(this.$el)
-        }
+        // if (root) {
+        //     // 由此可以推断出，root是document 或其子类 如 div, p, span等
+        //     root.appendChild(this.$el)
+        // }
+        const { mounted } = this.$options
         mounted?.call(this.proxy)
 
         // 返回 proxy 本身
@@ -44,17 +49,19 @@ class Vue {
 
     update() {
         // 删除旧有的DOM
-        const parent = this.$el.parentNode
-        parent?.removeChild(this.$el)
+        const parent = this.$el?.parentNode
+        // parent?.removeChild(this.$el)
         // 重新构建DOM树
         const vnode = this.$options?.render?.call(this.proxy, this.createElement) ?? this.createElement(undefined,undefined,undefined)
+        const oldEl = this.$el
+
         this.$el = this.patch(null, vnode)
         // 添加新DOM树
-        parent?.appendChild(this.$el)
+        parent?.replaceChild(this.$el,oldEl)
     }
 
     patch(oldVnode, newVnode) {
-        return this.createElm(newVnode)
+        return this.createDom(newVnode)
     }
 
     createElement(target, data, children) {
@@ -63,14 +70,30 @@ class Vue {
     }
 
     // 这个函数只接受一个VNode实例
-    createElm(vnode) {
+    createDom(vnode) {
         // 由此可以推断出this.$options.render返回的是一个对象实例
         const el = document.createElement(vnode.target)
+        el.__vue__ = this
 
         // vnode.data是一个数组
-        for (let key in vnode.data) {
-            // 为el设置属性
-            el.setAttribute(key, vnode.data[key])
+        // for (let key in vnode.data) {
+        //     // 为el设置属性
+        //     el.setAttribute(key, vnode.data[key])
+        // }
+
+        const data = vnode.data ?? {}
+
+        // set dom attributes
+        const attributes = data.attrs ?? {}
+
+        for(let key in attributes) {
+            el.setAttribute(key, attributes[key])
+        }
+
+        //set class
+        const classname = data.class
+        if(classname) {
+            el.setAttribute('class',classname)
         }
 
         const events = vnode?.data?.on ?? {}
@@ -90,7 +113,7 @@ class Vue {
                     el.textContent = child
                 } else {
                     // 插入el中当子DOM
-                    el.appendChild(this.createElm(child))
+                    el.appendChild(this.createDom(child))
                 }
             })
         }
@@ -117,7 +140,6 @@ class Vue {
 
                 get: (object, key) => {
                     const fullPath = path ? path + '.' + key : key
-                    // console.log(fullPath)
                     this.collect(fullPath)
                     if(typeof Reflect.get(object,key) === 'object' && Reflect.get(object,key) !== null) {
                         return new Proxy(Reflect.get(object,key), createDataProxyHandler(fullPath))
@@ -157,9 +179,14 @@ class Vue {
 
                 if(Reflect.has(data,key)) {
                     return createDataProxyHandler().get(data,key)
+                } else if(Reflect.has(methods,key)) {
+                    return Reflect.get(methods, key)?.bind(this.proxy)
+                } else {
+                    return Reflect.get(this, key)
                 }
 
-                return Reflect.get(methods, key)?.bind(this.proxy) ?? Reflect.get(this, key)
+                // console.log(this)
+                // return Reflect.get(methods, key)?.bind(this.proxy) ?? Reflect.get(this, key)
             }
         }
         // return new Proxy(this, {
