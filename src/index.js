@@ -3,6 +3,8 @@ import VNode from "./vnode"
 class Vue {
     constructor(options) {
         this.$options = options
+
+        this.initProps()
         // this.$mount = this.$mount.bind(this)
         this.proxy = this.initDataProxy()
         this.initWatch()
@@ -52,12 +54,12 @@ class Vue {
         const parent = this.$el?.parentNode
         // parent?.removeChild(this.$el)
         // 重新构建DOM树
-        const vnode = this.$options?.render?.call(this.proxy, this.createElement) ?? this.createElement(undefined,undefined,undefined)
+        const vnode = this.$options?.render?.call(this.proxy, this.createElement) ?? this.createElement(undefined, undefined, undefined)
         const oldEl = this.$el
 
         this.$el = this.patch(null, vnode)
         // 添加新DOM树
-        parent?.replaceChild(this.$el,oldEl)
+        parent?.replaceChild(this.$el, oldEl)
     }
 
     patch(oldVnode, newVnode) {
@@ -86,18 +88,18 @@ class Vue {
         // set dom attributes
         const attributes = data.attrs ?? {}
 
-        for(let key in attributes) {
+        for (let key in attributes) {
             el.setAttribute(key, attributes[key])
         }
 
         //set class
         const classname = data.class
-        if(classname) {
-            el.setAttribute('class',classname)
+        if (classname) {
+            el.setAttribute('class', classname)
         }
 
         const events = vnode?.data?.on ?? {}
-        for(let key in events) {
+        for (let key in events) {
             el.addEventListener(key, events[key])
         }
 
@@ -124,34 +126,34 @@ class Vue {
     // 代理入口
     initDataProxy() {
         // 默认option对象中有一个data()属性
-        const data = this.$options?.data?.() ?? {}
+        // const data = this.$options?.data?.() ?? {}
 
-        const createDataProxyHandler = path => { 
+        const createDataProxyHandler = path => {
             return {
                 set: (object, key, value) => {
                     const fullPath = path ? path + '.' + key : key
-                    
-                    const pre = Reflect.get(object,key)
-                    Reflect.set(object,key,value)
-                    this.notifyDataChange(fullPath,pre,value)
-                    
+
+                    const pre = Reflect.get(object, key)
+                    Reflect.set(object, key, value)
+                    this.notifyDataChange(fullPath, pre, value)
+
                     return true
                 },
 
                 get: (object, key) => {
                     const fullPath = path ? path + '.' + key : key
                     this.collect(fullPath)
-                    if(typeof Reflect.get(object,key) === 'object' && Reflect.get(object,key) !== null) {
-                        return new Proxy(Reflect.get(object,key), createDataProxyHandler(fullPath))
+                    if (typeof Reflect.get(object, key) === 'object' && Reflect.get(object, key) !== null) {
+                        return new Proxy(Reflect.get(object, key), createDataProxyHandler(fullPath))
                     } else {
-                        return Reflect.get(object,key)
+                        return Reflect.get(object, key)
                     }
                 },
 
                 deleteProperty: (object, key) => {
-                    if(Reflect.has(object,key)) {
+                    if (Reflect.has(object, key)) {
                         const fullPath = path ? path + '.' + key : key
-                        const pre = Reflect.get(object,key)
+                        const pre = Reflect.get(object, key)
                         // 删除目标属性
                         delete object[key]
                         // 唤醒观察者
@@ -163,10 +165,16 @@ class Vue {
             }
         }
 
+        const data = this.$data = this.$options.data ? this.$options.data() : {}
+        const props = this._props
+        const methods = this.$options?.methods ?? {}
+
         const handler = {
             set: (_, key, value) => {
-                if(Reflect.has(data, key)) {
-                    return createDataProxyHandler().set(data,key,value)
+                if (Reflect.has(props, key)) {
+                    return createDataProxyHandler().set(props, key, value)
+                } else if (Reflect.has(data, key)) {
+                    return createDataProxyHandler().set(data, key, value)
                 } else {
                     Reflect.set(this, key, value)
                 }
@@ -175,11 +183,13 @@ class Vue {
             },
 
             get: (_, key, value) => {
-                const methods = this.$options?.methods ?? {}
+                // const methods = this.$options?.methods ?? {}
 
-                if(Reflect.has(data,key)) {
-                    return createDataProxyHandler().get(data,key)
-                } else if(Reflect.has(methods,key)) {
+                if (Reflect.has(props, key)) {
+                    return createDataProxyHandler().get(props, key)
+                } else if (Reflect.has(data, key)) {
+                    return createDataProxyHandler().get(data, key)
+                } else if (Reflect.has(methods, key)) {
                     return Reflect.get(methods, key)?.bind(this.proxy)
                 } else {
                     return Reflect.get(this, key)
@@ -215,15 +225,15 @@ class Vue {
         //     }
         // })
 
-        return new Proxy(this,handler)
+        return new Proxy(this, handler)
     }
 
     collect(key) {
         // console.log("collect 'this' is :")
         // console.log(this)
         this.collected = this.collected ?? {}
-        if(!this.collected[key]) {
-            this.$watch(key,this.update.bind(this))
+        if (!this.collected[key]) {
+            this.$watch(key, this.update.bind(this))
             this.collected[key] = true
         }
     }
@@ -237,6 +247,16 @@ class Vue {
     notifyDataChange(key, pre, val) {
         // Reflect.get(this.dataNotifyChain,key) 返回一个数组
         Reflect.get(this.dataNotifyChain, key)?.forEach(cb => cb(pre, val))
+    }
+
+    initProps() {
+        this._props = {}
+        const { props: propsOptions, propsData } = this.$options
+        if (!propsOptions || !propsOptions.length) return
+
+        propsOptions.forEach(key => {
+            this._props[key] = propsData[key]
+        })
     }
 }
 
