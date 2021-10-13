@@ -54,7 +54,7 @@ class Vue {
         const parent = this.$el?.parentNode
         // parent?.removeChild(this.$el)
         // 重新构建DOM树
-        const vnode = this.$options?.render?.call(this.proxy, this.createElement) ?? this.createElement(undefined, undefined, undefined)
+        const vnode = this.$options?.render?.call(this.proxy, this.createElement.bind(this)) ?? this.createElement(undefined, undefined, undefined)
         const oldEl = this.$el
 
         this.$el = this.patch(null, vnode)
@@ -67,12 +67,21 @@ class Vue {
     }
 
     createElement(target, data, children) {
+        const components = this.$options?.components ?? {}
+        if(target in components) {
+            return new VNode(target,data,components[target])
+        }
         // 这个函数仅返回VNode 的一个实例
         return new VNode(target, data, children)
     }
 
     // 这个函数只接受一个VNode实例
     createDom(vnode) {
+        if(vnode.componentOptions) {
+            const componentInstance = new Vue(Object.assign({},vnode.componentOptions, {propsData: vnode.data.props})).$mount()
+            vnode.componentInstance = componentInstance
+            return componentInstance.$el
+        }
         // 由此可以推断出this.$options.render返回的是一个对象实例
         const el = document.createElement(vnode.target)
         el.__vue__ = this
